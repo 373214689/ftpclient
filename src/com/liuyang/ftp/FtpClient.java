@@ -20,6 +20,7 @@ import java.util.regex.Pattern;
 
 /**
  * Ftp Client Manager
+ * @see FTP-RFC959
  * @author liuyang
  * @version 1.0.0
  *
@@ -547,7 +548,7 @@ public class FtpClient {
 			} else {
 				closeActiveMode();
 			}
-			response(""); // 再次获取响应
+			response(""); // 再次获取响应, 但不指定响应类型。
 		}
 	}
 	
