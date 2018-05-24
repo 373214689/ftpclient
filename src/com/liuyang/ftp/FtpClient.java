@@ -17,12 +17,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Ftp Client Manager
+ * 
+ * <li>2018/5/12 created by liuyang.</li>
+ * <li>2018/5/24 modify {@code CloseSream} to {@code CloseStream}.</li>
+ * <li>2018/5/24 add {@code lines} method.</li>
  * @see FTP-RFC959
  * @author liuyang
- * @version 1.0.0
+ * @version 1.0.1
  *
  */
 public class FtpClient {
@@ -415,7 +420,7 @@ public class FtpClient {
 			e.printStackTrace();
 			throw new FtpClientException(e.getMessage());
 		} finally {
-			closeSream();
+			closeStream();
 			fin = null;
 			fos = null;
 		}
@@ -460,7 +465,7 @@ public class FtpClient {
 			e.printStackTrace();
 			throw new FtpClientException(e.getMessage());
 		} finally {
-			closeSream();
+			closeStream();
 			fin = null;
 			fos = null;
 		}
@@ -469,7 +474,7 @@ public class FtpClient {
 	
 	/**
 	 * Create the remote file outputstream. <br>
-	 * At the end, must use <code>closeSream()</code> to close outputstream.
+	 * At the end, must use <code>closeStream()</code> to close outputstream.
 	 * @param remotePath
 	 * @param mode see {@link Mode}
 	 * @return
@@ -509,7 +514,7 @@ public class FtpClient {
 	
 	/**
 	 * Open the remote file inputstream. <br>
-	 * At the end, must use <code>closeSream()</code> to close inputstream.
+	 * At the end, must use <code>closeStream()</code> to close inputstream.
 	 * @param remotePath
 	 * @return
 	 * @throws FtpClientException
@@ -537,8 +542,8 @@ public class FtpClient {
 	 * Close the stream which created by active mode or passive mode.
 	 * @throws FtpClientException
 	 */
-	public synchronized void closeSream() throws FtpClientException {
-		//logger.debug("closeSream >> isSendingMode:" + isSendingMode + " isReceivingMode:" + isReceivingMode);
+	public synchronized void closeStream() throws FtpClientException {
+		//logger.debug("closeStream >> isSendingMode:" + isSendingMode + " isReceivingMode:" + isReceivingMode);
 		if (isReceivingMode == true || isSendingMode == true) {
 			
 			isReceivingMode = false;
@@ -560,6 +565,17 @@ public class FtpClient {
 	public String getLocalAddress() throws FtpClientException {
 		connectionCheck();
 		return client.getLocalSocketAddress().toString();
+	}
+	
+    /**
+     * Open the remote file as line stream. <br>
+     * At the end, must use <code>closeStream()</code> to close stream.
+     * @param remotePath
+     * @return
+     * @throws FtpClientException
+     */
+	public synchronized Stream<String> lines(String remotePath) throws FtpClientException {
+		return new BufferedReader(new InputStreamReader(openStream(remotePath))).lines();
 	}
 	
 	/**
@@ -663,6 +679,12 @@ public class FtpClient {
 		return null;
 	}
 	
+	/**
+	 * 
+	 * @param path
+	 * @return
+	 * @throws FtpClientException
+	 */
 	public synchronized FtpResponse appe(String path) throws FtpClientException {
 		if (request("APPE", path)) return response("APPE");
 		return null;
@@ -773,7 +795,7 @@ public class FtpClient {
 	public synchronized FtpResponse pasv() throws FtpClientException {
 		FtpResponse response = null;
 		// 强制关闭之前打开的主/被动模式的流操作对象。
-		closeSream();
+		closeStream();
 		// 发送命令 获取首次响应
 		if (request("PASV") && (response = response("PASV")).status()) {
 			String ipInfo = response.messages().get(0).message;
@@ -813,7 +835,7 @@ public class FtpClient {
 				.replaceAll("/",  "")
 				.replace(".", ",") + "," + (port - port % 256) / 256 + "," + port % 256;
 		// 强制关闭之前打开的主/被动模式的流操作对象。
-		closeSream();
+		closeStream();
 		// 发送命令 获取首次响应
 		if (request("PORT", activePort) && (response = response("PORT")).status()) {
 			try {
