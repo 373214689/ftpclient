@@ -271,9 +271,9 @@ public class FtpClient {
 	public synchronized boolean exists(String path) throws FtpClientException {
 		if (request("STAT", path)) return 
 				response("STAT", true, true)
-				.messages().stream()
-				.filter(e -> !e.message.startsWith("213"))
-				.count() > 0;
+				    .messages().stream()
+				    .filter(e -> !e.message.startsWith("213"))
+				    .count() > 0;
 		return false;
 	}
 	
@@ -475,6 +475,7 @@ public class FtpClient {
 	/**
 	 * Create the remote file outputstream. <br>
 	 * At the end, must use <code>closeStream()</code> to close outputstream.
+	 * <li>2018/6/20 optimize by liuyang. append NULL check. </li>
 	 * @param remotePath
 	 * @param mode see {@link Mode}
 	 * @return
@@ -490,31 +491,30 @@ public class FtpClient {
 		}
 		// 如果处于发送模式，则抛出异常
         if (isSendingMode) throw new FtpClientException("in sending mode.");
+        FtpResponse response = null;
+        OutputStream retval = null;
 		// 发送命令 && 首次获取响应
         switch (mode) {
         case APPEND:
-    		if (appe(remotePath).status()) {
-    			isSendingMode = true;
-    			return isPassiveModeEnable ? getPassiveOutputStream() : getActiveOutputStream();
-    		}
-    		break;
+        	response = appe(remotePath); break;
         case OVERWRITE:
-    		if (stor(remotePath).status()) {
-    			isSendingMode = true;
-    			return isPassiveModeEnable ? getPassiveOutputStream() : getActiveOutputStream();
-    		}
+        	response = stor(remotePath); break;
         case UNIQUEU:
-    		if (stou(remotePath).status()) {
-    			isSendingMode = true;
-    			return isPassiveModeEnable ? getPassiveOutputStream() : getActiveOutputStream();
-    		}
+        	response = stou(remotePath); break;
         }
-		return null;
+        if (!response.status()) throw new FtpClientException("response failure. " + response);
+        // 打开输出流
+        retval = isPassiveModeEnable ? getPassiveOutputStream() : getActiveOutputStream();
+        if (retval == null) throw new FtpClientException("can not create outputstream. " + response);
+        isSendingMode = true;
+        response = null;
+		return retval;
 	}
 	
 	/**
 	 * Open the remote file inputstream. <br>
 	 * At the end, must use <code>closeStream()</code> to close inputstream.
+	 * <li>2018/6/20 optimize by liuyang. append NULL check. </li>
 	 * @param remotePath
 	 * @return
 	 * @throws FtpClientException
@@ -527,15 +527,17 @@ public class FtpClient {
 		} else {
 			port(activePort);
 		}
-		
 		// 如果处于接收模式，则抛出异常
         if (isReceivingMode) throw new FtpClientException("in receiving mode.");
-		// 发送命令 && 首次获取响应
-		if (request("RETR", remotePath) && response("RETR").status()) {
-			isReceivingMode = true;
-			return isPassiveModeEnable ? getPassiveInputStream() : getActiveInputStream();
-		}
-		return null;
+        // 发送命令 && 首次获取响应
+        FtpResponse response = retr(remotePath);
+        if (!response.status()) throw new FtpClientException("response failure. because " + response);
+        // 打开输入流
+        InputStream retval = isPassiveModeEnable ? getPassiveInputStream() : getActiveInputStream();
+        if (retval == null) throw new FtpClientException("can not open inputstream. " + response);
+        isReceivingMode = true;
+		response = null;
+		return retval;
 	}
 	
 	/**
@@ -553,7 +555,8 @@ public class FtpClient {
 			} else {
 				closeActiveMode();
 			}
-			response(""); // 再次获取响应, 但不指定响应类型。
+			// 再次获取响应, 但不指定响应类型。
+			response(""); 
 		}
 	}
 	
